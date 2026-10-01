@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* Cuaderno (escribir) + consola (tocar): papel crema, tinta, un acento bermellón */
+@theme {
+  --font-sans: 'Instrument Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+
+  --color-paper: #f4efe6;
+  --color-paper-hi: #fbf8f2;
+  --color-rule: #ddd3c2;
+  --color-ink: #1b1714;
+  --color-ink-soft: #5e554c;
+  --color-ink-mute: #71675b;
+  --color-rec: #d43f22;
+  --color-rec-deep: #b53519;
+  --color-signal: #f2b33d;
+
+  --color-console: #17140f;
+  --color-console-2: #221e18;
+  --color-console-line: #3a342b;
+  --color-console-text: #f4efe6;
+  --color-console-mute: #9a9183;
+
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-meter: meter 0.9s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes meter {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+}
+
+:root {
+  color-scheme: light;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-rec) 30%, transparent);
+  color: inherit;
+}
+
+/* Papel pautado muy tenue */
+.paper-ruled {
+  background-color: var(--color-paper);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    color-mix(in oklab, var(--color-rule) 38%, transparent) 31px,
+    color-mix(in oklab, var(--color-rule) 38%, transparent) 32px
+  );
+}
+
+/* Marcador de las palabras sorteadas dentro del texto */
+.marker {
+  color: inherit;
+  background: linear-gradient(
+    transparent 58%,
+    color-mix(in oklab, var(--color-rec) 28%, transparent) 58%,
+    color-mix(in oklab, var(--color-rec) 28%, transparent) 92%,
+    transparent 92%
+  );
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-inline: 0.08em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-rec);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
