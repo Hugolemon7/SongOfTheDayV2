@@ -106,6 +106,12 @@ On hover the shadow shrinks and the element shifts the same distance, so it look
   - Stop: a paper pill.
   - Export: an outlined pill.
 - **Text actions** on paper ("Copiar escenario", "Ver el escenario de hoy →"): ink text with a 2px `rec` underline, offset 4px, which thickens on hover.
+- **Home entry cards:** two dark cards side by side ("Escenario del día" in ink with a `rec` hard shadow; "Crea una maqueta" in console black with a `signal` hard shadow and a mini row of pads).
+- **Pillars:** start unselected. "Generar escenario" stays disabled (greyed, flat) with a helper line until at least one is on; "Seleccionar todos" toggles all.
+- **Back button** (`BackButton`): a bordered paper pill "← Inicio" (arrow only on mobile), visible but quieter than the primary action.
+- **Quiz:** progress segments, a Fraunces question, option tiles that flip to ink when chosen, a Mayor/Menor segmented control, a 12-key grid, and progression cards with a round ▶ preview.
+- **Project section card:** mono index, Fraunces name, the progression name and chord slots showing degree + chord. Active: 2px ink border and an "Editando" tag. Playing: a `rec` inset bar on the left. Actions are 36px icon buttons (up, down, duplicate, delete).
+- **Chord palette:** chips with degree + chord; the armed chip is ink. The replace bar is fixed to the bottom in ink with a `rec` top rule, rendered in a portal (the fade-in transform on `<main>` would otherwise break `position: fixed`).
 - **Loading:** a five-bar `rec` level meter (`animate-meter`) with a mono caption. It's used only for free ideas; the daily scenario is instant.
 
 ## Layout

@@ -34,9 +34,29 @@ Secondary success: the user comes back the next day for the new **Escenario del 
 | Surface | Mode | The visitor succeeds when… |
 |---|---|---|
 | Pillar selection (start) | Operate | they open today's scenario in one tap, or choose what to randomise and generate in one move |
-| Results (scenario + maqueta) | Operate | they go from prompt to recorded sketch without friction |
+| Results (scenario + idea) | Operate | they go from prompt to recorded sketch without friction |
+| Modo avanzado: quiz | Operate | they answer 2–4 quick questions and land on a playable project |
+| Modo avanzado: project | Operate | they arrange sections, swap chords, hear the whole song in order and record it |
 
 There is no marketing or landing surface yet. If one is added, it is a Persuade surface with its own brief.
+
+## Modo avanzado: "Crea una maqueta"
+
+- **Entry:** a main card on the start screen. It reads "Continuar maqueta" when a project is saved.
+- **Quiz for a new project:** section (Intro, Verso, Coro or Puente) → key → 3 progression suggestions for that section and mode, with audio preview and "ver otras" → energy (sets BPM and groove). Adding a section asks only for the section type and the progression.
+- **Project:**
+  - Sections can be selected, reordered, duplicated and deleted (with undo).
+  - Below them is a palette of chords in the key: diatonic chords plus a few borrowed ones. Pick a chord, then pick which chord of the active section to replace, from a bar fixed to the bottom of the screen.
+  - The console plays the whole song in section order, with real-time key, tempo, groove and track toggles, and records the full maqueta.
+- **Data model:** sections store harmonic degrees, not chord names, so changing the key transposes the whole song. The project is saved in this browser only (`localStorage`); there are no accounts.
+- **Naming:** "maqueta" is used only in the advanced mode. In the quick flow the result is an "idea" ("Grabar idea", "Idea" console).
+
+## Recording and export
+
+- Recordings are converted on-device to **WAV** (16-bit mono) for compatibility. MP3 would need an encoder library and can be added later.
+- By default the recording mixes the voice with the console output ("Incluir la base").
+- **"Compartir…"** uses the system share sheet (Notas, Archivos, WhatsApp…) where the browser supports sharing files; otherwise only "Descargar" is shown.
+- A web app cannot write directly into Voice Memos (Notas de Voz).
 
 ## Product principles
 

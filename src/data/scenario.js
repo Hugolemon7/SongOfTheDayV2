@@ -1,7 +1,7 @@
+import { GENEROS, PROGRESIONES, INITIAL_KEYS, getModo } from './musicData.js';
 import {
-  SENTIMIENTOS, OBJETOS, COLORES, FECHAS, CONCEPTOS, GENEROS,
-  PROGRESIONES, INITIAL_KEYS, getModo, conArticulo, fraseFecha
-} from './musicData.js';
+  SENTIMIENTOS, OBJETOS, COLORES, FECHAS, CONCEPTOS, conArticulo, fraseFecha
+} from './words.js';
 
 // Sin género elegido, un tempo neutro para practicar
 export const DEFAULT_BPM = 100;
@@ -17,6 +17,9 @@ export const ALL_PILLARS = {
   progresion: true,
   genero: true
 };
+
+// En el inicio las cards empiezan deseleccionadas
+export const NO_PILLARS = Object.fromEntries(Object.keys(ALL_PILLARS).map((key) => [key, false]));
 
 // PRNG determinista (mulberry32): misma semilla → misma secuencia en cualquier dispositivo
 export function mulberry32(seed) {
@@ -80,9 +83,14 @@ export function buildScenario(rng, pillars) {
 
   // Redacción del escenario con frases fluidas y congruentes para el cantante
   const partGenre = generoObj ? `Propuesta estilística orientada al género ${generoObj.name}.` : '';
-  const partCore = (sentimiento && concepto)
-    ? `La atmósfera principal transmite una profunda sensación de ${sentimiento}, estructurada bajo el concepto narrativo de ${concepto}.`
-    : 'La atmósfera invita a explorar una interpretación vocal íntima y expresiva.';
+  // Instrucción directa: "Crea una canción con…"
+  const partCore = sentimiento && concepto
+    ? `Crea una canción con un sentimiento de ${sentimiento}, en torno al concepto de ${concepto}.`
+    : sentimiento
+      ? `Crea una canción con un sentimiento de ${sentimiento}.`
+      : concepto
+        ? `Crea una canción con el concepto de ${concepto} como centro.`
+        : 'Crea una canción con una interpretación vocal íntima y expresiva.';
 
   const sujeto = objeto ? conArticulo(objeto) : { texto: 'un elemento clave', plural: false };
   const partContext = (objeto || color || fecha)

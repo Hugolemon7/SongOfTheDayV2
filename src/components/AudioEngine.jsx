@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getChordFrequencies } from '../data/musicData';
+import { getAudio, playClick, playDrum, playChord } from '../audio/engine';
+import { hitsAt } from '../audio/patterns';
 
 export const MIN_BPM = 60;
 export const MAX_BPM = 180;
@@ -18,106 +19,20 @@ const MUTE_TOGGLES = [
 
 const STEP_BUTTON = 'w-9 h-9 rounded-lg border border-console-line text-console-text font-mono hover:bg-console-2 disabled:opacity-30 disabled:hover:bg-transparent';
 
-function playClick(ctx, out, time, isDownbeat) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.frequency.setValueAtTime(isDownbeat ? 1200 : 800, time);
-  gain.gain.setValueAtTime(0.2, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-  osc.connect(gain).connect(out);
-  osc.start(time);
-  osc.stop(time + 0.05);
-}
+// El metrónomo empieza apagado
+const INITIAL_MUTE = { click: true, drums: false, chords: false };
 
-function playDrums(ctx, out, noise, time, step, genre) {
-  const isKick = step === 0 || step === 8 || (genre === 'Punk' && step % 4 === 0);
-  const isSnare = step === 4 || step === 12;
-  const isHiHat = step % 2 === 0;
-
-  if (isKick) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.setValueAtTime(130, time);
-    osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.12);
-    gain.gain.setValueAtTime(0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-    osc.connect(gain).connect(out);
-    osc.start(time);
-    osc.stop(time + 0.13);
-  }
-
-  if (isSnare) {
-    const src = ctx.createBufferSource();
-    src.buffer = noise;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.25, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-    src.connect(filter).connect(gain).connect(out);
-    src.start(time);
-    src.stop(time + 0.1);
-  }
-
-  if (isHiHat) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(8000, time);
-    gain.gain.setValueAtTime(0.05, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
-    osc.connect(gain).connect(out);
-    osc.start(time);
-    osc.stop(time + 0.04);
-  }
-}
-
-// Pad sostenido durante todo el compás
-function playChord(ctx, out, time, chord, duration) {
-  getChordFrequencies(chord).forEach((freq) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, time);
-    gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(0.07, time + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.95);
-    osc.connect(gain).connect(out);
-    osc.start(time);
-    osc.stop(time + duration);
-  });
-}
-
-export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange }) {
+export default function AudioEngine({ bpm, setBpm, chords, genre, genreLabel, onChordChange, subject = 'la idea' }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [mute, setMute] = useState({ click: false, drums: false, chords: false });
+  const [mute, setMute] = useState(INITIAL_MUTE);
   const [beat, setBeat] = useState(-1);
   const [audioError, setAudioError] = useState(null);
 
-  const audioRef = useRef(null); // { ctx, out, noise }
   // El planificador lee siempre los valores actuales sin reiniciarse
   const liveRef = useRef({ bpm, chords, genre, mute, onChordChange });
   useEffect(() => {
     liveRef.current = { bpm, chords, genre, mute, onChordChange };
   });
-
-  const ensureAudio = () => {
-    if (!audioRef.current) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) throw new Error('unsupported');
-      const ctx = new AudioCtx();
-      const out = ctx.createGain();
-      out.gain.value = 0.8;
-      out.connect(ctx.destination);
-      const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.1), ctx.sampleRate);
-      const data = noise.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      audioRef.current = { ctx, out, noise };
-    }
-    if (audioRef.current.ctx.state === 'suspended') audioRef.current.ctx.resume();
-    return audioRef.current;
-  };
 
   const togglePlay = () => {
     if (isPlaying) {
@@ -125,7 +40,7 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
       return;
     }
     try {
-      ensureAudio();
+      getAudio();
       setAudioError(null);
       setIsPlaying(true);
     } catch {
@@ -134,8 +49,8 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
   };
 
   useEffect(() => {
-    if (!isPlaying || !audioRef.current) return;
-    const { ctx, out, noise } = audioRef.current;
+    if (!isPlaying) return;
+    const { ctx } = getAudio();
     const queue = [];
     let step = 0;
     let bar = 0;
@@ -146,10 +61,12 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
       const sixteenth = 60 / bpm / 4;
       while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
         const chordIdx = chords.length > 0 ? bar % chords.length : -1;
-        if (step % 4 === 0 && !mute.click) playClick(ctx, out, nextTime, step === 0);
-        if (!mute.drums) playDrums(ctx, out, noise, nextTime, step, genre);
+        if (step % 4 === 0 && !mute.click) playClick(nextTime, step === 0);
+        if (!mute.drums) {
+          for (const { voice, velocity } of hitsAt(genre, step)) playDrum(voice, nextTime, velocity);
+        }
         if (step === 0 && chordIdx >= 0 && !mute.chords) {
-          playChord(ctx, out, nextTime, chords[chordIdx], sixteenth * STEPS_PER_BAR);
+          playChord(nextTime, chords[chordIdx], sixteenth * STEPS_PER_BAR);
         }
         queue.push({ time: nextTime, beat: Math.floor(step / 4), chordIdx });
         nextTime += sixteenth;
@@ -181,12 +98,6 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
     };
   }, [isPlaying]);
 
-  // Liberar el dispositivo de audio al salir de la pantalla
-  useEffect(() => () => {
-    audioRef.current?.ctx.close();
-    audioRef.current = null;
-  }, []);
-
   const toggleMute = (id) => setMute((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
@@ -194,7 +105,7 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
       <div className="flex items-center gap-5">
         <button
           onClick={togglePlay}
-          aria-label={isPlaying ? 'Detener la maqueta' : 'Reproducir la maqueta'}
+          aria-label={isPlaying ? `Detener ${subject}` : `Reproducir ${subject}`}
           className={`w-16 h-16 shrink-0 rounded-full flex items-center justify-center transition-all ${
             isPlaying
               ? 'bg-rec text-white shadow-[0_0_32px_-6px_var(--color-rec)]'
@@ -258,7 +169,7 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
         <p role="alert" className="text-sm font-medium text-[#ff8a73]">{audioError}</p>
       )}
 
-      {/* Pistas: pulsar para silenciar */}
+      {/* Pistas: pulsar para activar o silenciar */}
       <div role="group" aria-label="Pistas" className="grid grid-cols-3 gap-2">
         {MUTE_TOGGLES.map(({ id, label }) => (
           <button
@@ -275,7 +186,7 @@ export default function AudioEngine({ bpm, setBpm, chords, genre, onChordChange 
               aria-hidden="true"
               className={`w-1.5 h-1.5 shrink-0 rounded-full ${mute[id] ? 'bg-console-line' : 'bg-signal shadow-[0_0_6px_var(--color-signal)]'}`}
             />
-            <span className="truncate">{label}{id === 'drums' && genre ? <span className="hidden sm:inline"> · {genre}</span> : ''}</span>
+            <span className="truncate">{label}{id === 'drums' && genreLabel ? <span className="hidden sm:inline"> · {genreLabel}</span> : ''}</span>
           </button>
         ))}
       </div>

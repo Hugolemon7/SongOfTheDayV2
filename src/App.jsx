@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AudioEngine from './components/AudioEngine';
 import VoiceRecorder from './components/VoiceRecorder';
-import { SINONIMOS_DB, getKeyDisplay, transposeProgression } from './data/musicData';
-import { ALL_PILLARS, buildScenario, buildDailyScenario, dayOfYear, formatLongDate } from './data/scenario';
+import Maqueta from './maqueta/Maqueta';
+import { EYEBROW, HARD_BUTTON, TEXT_ACTION, Title, BackButton } from './components/ui';
+import { PROGRESIONES, getKeyDisplay, transposeProgression, getModo } from './data/musicData';
+import { SINONIMOS_DB } from './data/words';
+import { ALL_PILLARS, NO_PILLARS, buildScenario, buildDailyScenario, dayOfYear, formatLongDate } from './data/scenario';
+import { loadProject, sectionLabels } from './maqueta/model';
 
 const PILLARS = [
   { id: 'sentimiento', label: 'Sentimiento' },
@@ -15,12 +19,9 @@ const PILLARS = [
   { id: 'genero', label: 'Género' }
 ];
 
-// Etiqueta de sección compartida (lectura tipo consola)
-const EYEBROW = 'font-mono text-[11px] font-medium uppercase tracking-[0.16em]';
-
 const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Marca con rotulador las palabras sorteadas dentro de una frase
+// Marca con rotulador las palabras sorteadas dentro de una frase (solo palabras completas)
 function Highlighted({ text, words }) {
   const list = words.filter(Boolean);
   if (list.length === 0) return text;
@@ -31,22 +32,24 @@ function Highlighted({ text, words }) {
   );
 }
 
-function Title({ size }) {
-  return (
-    <h1 className={`font-display font-semibold tracking-tight text-ink whitespace-nowrap ${size}`} style={{ fontVariationSettings: '"opsz" 144' }}>
-      Song <em className="font-normal italic text-rec">of the</em> day
-    </h1>
-  );
+// Resumen de la maqueta guardada para la tarjeta de inicio
+function describeSavedProject(project) {
+  if (!project || project.sections.length === 0) return null;
+  const labels = sectionLabels(project.sections);
+  const names = project.sections.map((s) => labels[s.id]);
+  return names.length > 3 ? `${names.slice(0, 3).join(' · ')} · +${names.length - 3}` : names.join(' · ');
 }
 
 export default function App() {
-  // Estado de Selección de Pilares (Pantalla Inicio)
-  const [activePillars, setActivePillars] = useState(ALL_PILLARS);
-  // Fecha mostrada en el inicio; se refresca al volver para cubrir el cambio de medianoche
+  const [view, setView] = useState('home'); // home | idea | maqueta
+  // Las cards de pilares empiezan deseleccionadas
+  const [activePillars, setActivePillars] = useState(NO_PILLARS);
+  // Fecha y maqueta guardada del inicio; se refrescan al volver (medianoche, cambios)
   const [today, setToday] = useState(() => new Date());
+  const [savedSummary, setSavedSummary] = useState(() => describeSavedProject(loadProject()));
 
   const [isLoading, setIsLoading] = useState(false);
-  const [scenario, setScenario] = useState(null); // null = Pantalla Inicio
+  const [scenario, setScenario] = useState(null);
   const [keyState, setKeyState] = useState({ rootIndex: 0, isMinor: false });
   const [bpm, setBpm] = useState(115);
   const [copyStatus, setCopyStatus] = useState(null); // null | 'ok' | 'error'
@@ -59,6 +62,9 @@ export default function App() {
     clearTimeout(generateTimerRef.current);
   }, []);
 
+  const anyPillar = Object.values(activePillars).some(Boolean);
+  const allPillars = Object.values(activePillars).every(Boolean);
+
   // Una idea libre pendiente no debe aparecer si la persona ya navegó a otro sitio
   const cancelPendingGenerate = () => {
     clearTimeout(generateTimerRef.current);
@@ -69,6 +75,10 @@ export default function App() {
     setActivePillars(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const setAllPillars = (value) => {
+    setActivePillars(Object.fromEntries(PILLARS.map(p => [p.id, value])));
+  };
+
   // Aplica un escenario ya construido (diario o libre) a la pantalla de resultados
   const applyScenario = (next) => {
     setKeyState(next.key);
@@ -76,12 +86,16 @@ export default function App() {
     setActiveChord(-1);
     setCopyStatus(null);
     setScenario(next);
+    setView('idea');
   };
 
-  const goToPillars = () => {
+  const goHome = () => {
     cancelPendingGenerate();
     setToday(new Date());
+    setSavedSummary(describeSavedProject(loadProject()));
     setScenario(null);
+    setView('home');
+    window.scrollTo({ top: 0 });
   };
 
   // Escenario del día: determinista e instantáneo, sin pantalla de carga
@@ -93,17 +107,37 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
 
-  // Idea libre: aleatoria y respetando los pilares elegidos
+  // Idea libre: aleatoria y respetando los pilares elegidos (todos si no hay ninguno,
+  // p. ej. al pedir "Otra idea" desde el escenario del día)
   const handleGenerate = () => {
     clearTimeout(generateTimerRef.current);
     setIsLoading(true);
+    const pillars = anyPillar ? activePillars : ALL_PILLARS;
     generateTimerRef.current = setTimeout(() => {
-      applyScenario({ ...buildScenario(Math.random, activePillars), source: 'free' });
+      applyScenario({ ...buildScenario(Math.random, pillars), source: 'free' });
       setIsLoading(false);
     }, 600); // Carga fluida de 600ms
   };
 
-  const currentChords = scenario 
+  const openMaqueta = () => {
+    cancelPendingGenerate();
+    setView('maqueta');
+    window.scrollTo({ top: 0 });
+  };
+
+  // Cambiar la progresión de la idea; la tonalidad adopta su modo
+  const changeProgression = (progression) => {
+    setScenario(s => ({ ...s, progresionObj: progression }));
+    setKeyState(k => ({ ...k, isMinor: getModo(progression) === 'menor' }));
+    setActiveChord(-1);
+  };
+
+  const randomProgression = () => {
+    const others = PROGRESIONES.filter(p => p.name !== scenario.progresionObj.name);
+    changeProgression(others[Math.floor(Math.random() * others.length)]);
+  };
+
+  const currentChords = scenario
     ? transposeProgression(scenario.progresionObj.numerales, keyState.rootIndex, keyState.isMinor)
     : [];
 
@@ -155,31 +189,13 @@ export default function App() {
       ].filter(tag => tag.value)
     : [];
 
+  const showIdea = view === 'idea' && scenario;
+
   return (
     <div className="min-h-screen paper-ruled text-ink font-sans px-4 py-6 md:px-8 md:py-10 flex flex-col items-center">
 
-      {/* Cabecera: completa en el inicio, compacta con navegación en resultados */}
-      {scenario ? (
-        <header className="max-w-2xl w-full flex items-center justify-between gap-3 mb-10 md:mb-14">
-          <Title size="text-xl md:text-2xl" />
-          <nav className="flex items-center gap-1 whitespace-nowrap">
-            <button
-              onClick={goToPillars}
-              aria-label="Volver a configurar pilares"
-              className="text-sm font-semibold text-ink-soft hover:text-ink rounded-full px-3 py-2 transition-colors"
-            >
-              ←<span className="hidden sm:inline"> Pilares</span>
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={isLoading}
-              className="text-sm font-semibold text-ink bg-paper-hi border-2 border-ink rounded-full px-4 py-1.5 shadow-[3px_3px_0_var(--color-ink)] hover:shadow-[1px_1px_0_var(--color-ink)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:cursor-wait disabled:opacity-60 disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-[3px_3px_0_var(--color-ink)]"
-            >
-              {isLoading ? 'Generando…' : '↻ Otra idea'}
-            </button>
-          </nav>
-        </header>
-      ) : (
+      {/* Cabecera: completa en el inicio, compacta con regreso visible en las demás vistas */}
+      {view === 'home' ? (
         <header className="max-w-2xl w-full mt-6 md:mt-12 mb-10 md:mb-14">
           <p className={EYEBROW + ' text-ink-mute'}>{formatLongDate(today)}</p>
           <Title size="text-[3.25rem] leading-[0.95] sm:text-7xl md:text-8xl mt-3" />
@@ -187,10 +203,22 @@ export default function App() {
             Generador de ideas y maquetas de composición
           </p>
         </header>
+      ) : (
+        <header className="max-w-2xl w-full flex items-center justify-between gap-3 mb-10 md:mb-14">
+          <Title size="text-xl md:text-2xl" />
+          <nav className="flex items-center gap-2 whitespace-nowrap">
+            <BackButton onClick={goHome} />
+            {showIdea && (
+              <button onClick={handleGenerate} disabled={isLoading} className={HARD_BUTTON}>
+                {isLoading ? 'Generando…' : '↻ Otra idea'}
+              </button>
+            )}
+          </nav>
+        </header>
       )}
 
-      {/* PANTALLA DE CARGA (solo la primera vez; al regenerar se atenúa el resultado) */}
-      {isLoading && !scenario && (
+      {/* PANTALLA DE CARGA (desde el inicio; al regenerar se atenúa el resultado) */}
+      {isLoading && view === 'home' && (
         <div className="flex-1 flex flex-col items-center justify-center my-20 gap-5" role="status">
           <div className="flex items-end gap-1.5 h-10" aria-hidden="true">
             {[0, 1, 2, 3, 4].map(i => (
@@ -201,26 +229,57 @@ export default function App() {
         </div>
       )}
 
-      {/* PANTALLA 1: SELECCIÓN DE PILARES (INICIO) */}
-      {!isLoading && !scenario && (
+      {/* INICIO */}
+      {!isLoading && view === 'home' && (
         <main className="max-w-2xl w-full flex flex-col gap-8 animate-fade-in">
-          {/* Escenario del día: el mismo para todos en la misma fecha local */}
-          <button
-            onClick={openDaily}
-            className="group w-full text-left rounded-2xl bg-ink text-paper border-2 border-ink p-5 md:p-6 flex items-center justify-between gap-4 shadow-[5px_5px_0_var(--color-rec)] hover:shadow-[2px_2px_0_var(--color-rec)] hover:translate-x-[3px] hover:translate-y-[3px] active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all"
-          >
-            <span className="min-w-0">
-              <span className={EYEBROW + ' text-signal block'}>Hoy · Nº {dayOfYear(today)}</span>
-              <span className="block font-display text-2xl md:text-3xl font-semibold mt-1.5">Escenario del día</span>
-              <span className="block text-sm text-paper/70 mt-1">El mismo para todos hoy, listo para tocar.</span>
-            </span>
-            <span aria-hidden="true" className="text-3xl text-rec shrink-0 transition-transform group-hover:translate-x-1">→</span>
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* Escenario del día: el mismo para todos en la misma fecha local */}
+            <button
+              onClick={openDaily}
+              className="group w-full text-left rounded-2xl bg-ink text-paper border-2 border-ink p-5 md:p-6 flex flex-col justify-between gap-6 shadow-[5px_5px_0_var(--color-rec)] hover:shadow-[2px_2px_0_var(--color-rec)] hover:translate-x-[3px] hover:translate-y-[3px] active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all"
+            >
+              <span>
+                <span className={EYEBROW + ' text-signal block'}>Hoy · Nº {dayOfYear(today)}</span>
+                <span className="block font-display text-2xl md:text-3xl font-semibold mt-1.5">Escenario del día</span>
+                <span className="block text-sm text-paper/70 mt-1">El mismo para todos hoy, listo para tocar.</span>
+              </span>
+              <span aria-hidden="true" className="text-3xl text-rec transition-transform group-hover:translate-x-1">→</span>
+            </button>
+
+            {/* Modo avanzado */}
+            <button
+              onClick={openMaqueta}
+              className="group w-full text-left rounded-2xl bg-console text-console-text border-2 border-console p-5 md:p-6 flex flex-col justify-between gap-6 shadow-[5px_5px_0_var(--color-signal)] hover:shadow-[2px_2px_0_var(--color-signal)] hover:translate-x-[3px] hover:translate-y-[3px] active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all"
+            >
+              <span>
+                <span className={EYEBROW + ' text-signal block'}>Modo avanzado</span>
+                <span className="block font-display text-2xl md:text-3xl font-semibold mt-1.5">
+                  {savedSummary ? 'Continuar maqueta' : 'Crea una maqueta'}
+                </span>
+                <span className="block text-sm text-console-mute mt-1">
+                  {savedSummary ?? 'Arma tu canción por secciones, con tono, acordes y ritmo.'}
+                </span>
+              </span>
+              <span className="flex items-center justify-between gap-3">
+                <span className="flex gap-1" aria-hidden="true">
+                  {[0, 1, 2, 3].map(i => (
+                    <span key={i} className={`w-6 h-4 rounded-[4px] border ${i === 1 ? 'bg-rec border-rec' : 'border-console-line bg-console-2'}`} />
+                  ))}
+                </span>
+                <span aria-hidden="true" className="text-3xl text-signal transition-transform group-hover:translate-x-1">→</span>
+              </span>
+            </button>
+          </div>
 
           <div className="border-t border-rule pt-8">
             <p className={EYEBROW + ' text-ink-mute mb-2'}>O una idea libre</p>
             <h2 className="font-display text-2xl md:text-3xl font-semibold text-ink text-balance">Selecciona los pilares a aleatorizar</h2>
-            <p className="text-sm text-ink-soft mt-1.5">Elige los elementos que quieres incluir en tu propuesta creativa de hoy.</p>
+            <p className="text-sm text-ink-soft mt-1.5 flex flex-wrap items-baseline gap-x-3">
+              Elige los elementos que quieres incluir en tu propuesta creativa de hoy.
+              <button onClick={() => setAllPillars(!allPillars)} className={TEXT_ACTION}>
+                {allPillars ? 'Quitar todos' : 'Seleccionar todos'}
+              </button>
+            </p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -230,7 +289,7 @@ export default function App() {
                 className={`relative rounded-lg border-2 px-3 py-3 flex flex-col gap-4 cursor-pointer select-none transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-rec ${
                   activePillars[pillar.id]
                     ? 'bg-ink border-ink text-paper'
-                    : 'bg-paper-hi/60 border-dashed border-rule text-ink-mute hover:border-ink-mute'
+                    : 'bg-paper-hi/60 border-dashed border-rule text-ink-mute hover:border-ink-mute hover:text-ink-soft'
                 }`}
               >
                 <input
@@ -248,19 +307,27 @@ export default function App() {
             ))}
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-3">
             <button
               onClick={handleGenerate}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-full bg-rec hover:bg-rec-deep text-white text-lg font-semibold px-9 py-4 border-2 border-ink shadow-[5px_5px_0_var(--color-ink)] hover:shadow-[2px_2px_0_var(--color-ink)] hover:translate-x-[3px] hover:translate-y-[3px] active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all"
+              disabled={!anyPillar}
+              aria-describedby="ayuda-generar"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-full bg-rec text-white text-lg font-semibold px-9 py-4 border-2 border-ink shadow-[5px_5px_0_var(--color-ink)] enabled:hover:bg-rec-deep enabled:hover:shadow-[2px_2px_0_var(--color-ink)] enabled:hover:translate-x-[3px] enabled:hover:translate-y-[3px] enabled:active:shadow-none enabled:active:translate-x-[5px] enabled:active:translate-y-[5px] transition-all disabled:bg-rule disabled:text-ink-mute disabled:border-rule disabled:shadow-none disabled:cursor-not-allowed"
             >
               Generar escenario <span aria-hidden="true">→</span>
             </button>
+            <p id="ayuda-generar" className="text-sm text-ink-mute" aria-live="polite">
+              {anyPillar ? '' : 'Selecciona al menos un pilar para generar.'}
+            </p>
           </div>
         </main>
       )}
 
-      {/* PANTALLA 2: RESULTADOS — escenario (papel), maqueta (consola), inspiración */}
-      {scenario && (
+      {/* MODO AVANZADO */}
+      {view === 'maqueta' && <Maqueta onExit={goHome} />}
+
+      {/* RESULTADOS — escenario (papel), idea (consola), otras palabras */}
+      {showIdea && (
         <main
           aria-busy={isLoading}
           className={`max-w-2xl w-full flex flex-col gap-12 md:gap-16 mb-12 transition-opacity ${
@@ -280,10 +347,7 @@ export default function App() {
                   )}
                 </h2>
                 {scenario.source === 'free' && (
-                  <button
-                    onClick={openDaily}
-                    className="text-sm font-semibold text-ink underline decoration-rec decoration-2 underline-offset-4 hover:decoration-[3px]"
-                  >
+                  <button onClick={openDaily} className={TEXT_ACTION}>
                     Ver el escenario de hoy →
                   </button>
                 )}
@@ -316,10 +380,7 @@ export default function App() {
             )}
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <button
-                onClick={copyToClipboard}
-                className="text-sm font-semibold text-ink underline decoration-rec decoration-2 underline-offset-4 hover:decoration-[3px]"
-              >
+              <button onClick={copyToClipboard} className={TEXT_ACTION}>
                 {copyStatus === 'ok' ? '✓ Copiado al portapapeles' : 'Copiar escenario'}
               </button>
               <p aria-live="polite" className="text-sm font-semibold text-rec-deep">
@@ -328,16 +389,16 @@ export default function App() {
             </div>
           </section>
 
-          {/* 2. Maqueta: la consola */}
+          {/* 2. Idea: la consola */}
           <section
-            aria-labelledby="titulo-maqueta"
+            aria-labelledby="titulo-idea"
             style={{ colorScheme: 'dark' }}
             className="bg-console text-console-text rounded-[28px] p-5 md:p-8 flex flex-col gap-7 shadow-[0_30px_60px_-28px_rgba(27,23,20,0.75)] ring-1 ring-black/40"
           >
             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
               <div>
-                <h2 id="titulo-maqueta" className={EYEBROW + ' text-signal'}>
-                  <span aria-hidden="true">● </span>Maqueta
+                <h2 id="titulo-idea" className={EYEBROW + ' text-signal'}>
+                  <span aria-hidden="true">● </span>Idea
                 </h2>
                 <div className="flex items-center gap-3 mt-2">
                   <p className="font-display text-4xl md:text-5xl font-semibold tracking-tight">
@@ -350,9 +411,31 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <p className="font-mono text-xs text-console-mute">
-                {scenario.progresionObj.name} · {currentChords.length} compases
-              </p>
+
+              {/* Cambiar la progresión */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="progresion" className="font-mono text-[11px] uppercase tracking-[0.16em] text-console-mute">
+                  Progresión · {currentChords.length} compases
+                </label>
+                <div className="flex gap-1.5">
+                  <select
+                    id="progresion"
+                    value={scenario.progresionObj.name}
+                    onChange={(e) => changeProgression(PROGRESIONES.find(p => p.name === e.target.value))}
+                    className="bg-console-2 border border-console-line rounded-lg px-3 py-2 text-sm font-semibold text-console-text max-w-[14rem]"
+                  >
+                    {PROGRESIONES.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  </select>
+                  <button
+                    onClick={randomProgression}
+                    aria-label="Otra progresión al azar"
+                    title="Otra progresión al azar"
+                    className="w-10 rounded-lg border border-console-line text-console-text hover:bg-console-2"
+                  >
+                    ↻
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Un compás por acorde */}
@@ -384,20 +467,22 @@ export default function App() {
                 bpm={bpm}
                 setBpm={setBpm}
                 chords={currentChords}
-                genre={scenario.generoObj?.name ?? null}
+                genre={scenario.generoObj?.id ?? null}
+                genreLabel={scenario.generoObj?.name ?? null}
                 onChordChange={setActiveChord}
+                subject="la idea"
               />
             </div>
 
             <div className="border-t border-console-line pt-6">
-              <VoiceRecorder />
+              <VoiceRecorder title="Grabadora de ideas" recordLabel="Grabar idea" fileBase="idea" />
             </div>
           </section>
 
-          {/* 3. Inspiración lírica (solo si hay sinónimos para las palabras elegidas) */}
+          {/* 3. Otras palabras */}
           {synonymGroups.length > 0 && (
-            <section aria-labelledby="titulo-inspiracion" className="flex flex-col gap-4">
-              <h2 id="titulo-inspiracion" className={EYEBROW + ' text-ink-mute'}>Inspiración lírica</h2>
+            <section aria-labelledby="titulo-palabras" className="flex flex-col gap-4">
+              <h2 id="titulo-palabras" className={EYEBROW + ' text-ink-mute'}>Otras palabras</h2>
               <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
                 {synonymGroups.map(({ word, syns }) => (
                   <div key={word} className="bg-paper-hi border border-rule rounded-lg p-4 shadow-[0_1px_0_var(--color-rule)]">

@@ -1,45 +1,6 @@
-// Banco de datos enriquecido V2
+// Teoría musical: géneros, progresiones, tonalidades y deletreo de acordes
 
-export const SENTIMIENTOS = [
-  'amor', 'tristeza', 'alegría', 'enojo', 'miedo', 'repulsión', 'intriga', 
-  'ansiedad', 'aburrimiento', 'envidia', 'pasión', 'deseo', 'nostalgia', 
-  'melancolía', 'euforia', 'soledad', 'gratitud', 'culpa', 'desesperanza', 
-  'serenidad', 'vulnerabilidad', 'asombro', 'frustración', 'esperanza',
-  'vergüenza', 'orgullo', 'despecho', 'desolación', 'compasión', 'rencor'
-];
-
-export const OBJETOS = [
-  'familiar', 'infante', 'amigo', 'pareja', 'desconocido', 'luna', 'ojos', 
-  'boca', 'nariz', 'cabello', 'cama', 'taza', 'instrumento musical', 'juguete', 
-  'espejo', 'reloj antiguo', 'fotografía desgastada', 'carta sin enviar', 
-  'teléfono descompuesto', 'ventana lluviosa', 'llave oxidada', 'diario íntimo', 
-  'boleto de tren', 'chaqueta de cuero', 'anillo', 'radio de transistores',
-  'maleta vieja', 'faro distante', 'piano desafinado', 'vela encendida', 
-  'disco de vinilo', 'caja de cerillos', 'paraguas roto', 'botella con nota'
-];
-
-// Color, Fecha y Género se mantienen acotados según tus indicaciones
-export const COLORES = [
-  'rojo', 'verde', 'azul', 'negro', 'amarillo', 'blanco', 'violeta', 
-  'gris', 'dorado', 'turquesa', 'rosa', 'marrón', 'naranja', 'plata'
-];
-
-export const FECHAS = [
-  'primavera', 'verano', 'otoño', 'invierno', 'Halloween', 'Navidad', 
-  'Año Nuevo', 'Día de Gracias', 'Día de la Independencia', 'cumpleaños', 'aniversario', 
-  'madrugada de domingo', 'último día de clases', 'atardecer de verano', 
-  'medianoche', 'lunes por la mañana', 'eclipse', 'solsticio'
-];
-
-export const CONCEPTOS = [
-  'vida', 'muerte', 'pérdida', 'reflexión', 'carta', 'película', 'canción', 
-  'recuerdo', 'sueño', 'idea', 'viaje sin retorno', 'tiempo perdido', 
-  'identidad', 'transformación', 'secreto guardado', 'promesa rota', 
-  'segunda oportunidad', 'destino', 'distancia', 'perdón', 'despedida', 'origen',
-  'ambición', 'caos', 'iluminación', 'laberinto', 'renacimiento'
-];
-
-// Géneros (sin Reggae ni R&B)
+// Géneros: cada uno tiene su patrón de batería en src/audio/patterns.js
 export const GENEROS = [
   { id: 'Rock', name: 'Rock', defaultBpm: 120 },
   { id: 'Pop', name: 'Pop', defaultBpm: 115 },
@@ -49,7 +10,6 @@ export const GENEROS = [
   { id: 'Country', name: 'Country', defaultBpm: 105 },
   { id: 'BossaNova', name: 'Bossa Nova', defaultBpm: 80 },
   { id: 'Indie Rock', name: 'Indie Rock', defaultBpm: 125 },
-  { id: 'Synthwave', name: 'Synthwave', defaultBpm: 110 },
   { id: 'Bolero', name: 'Bolero', defaultBpm: 75 }
 ];
 
@@ -64,7 +24,6 @@ export const PROGRESIONES = [
   { name: 'Épica Moderna', numerales: ['I', 'IV', 'vi', 'V'] },
   { name: 'Melancólica', numerales: ['I', 'vi', 'ii', 'V'] },
   { name: 'Pop Épico Menor', numerales: ['i', 'VI', 'III', 'VII'], modo: 'menor' },
-  { name: '12-Bar Blues', numerales: ['I', 'I', 'I', 'I', 'IV', 'IV', 'I', 'I', 'V', 'IV', 'I', 'V'] },
   { name: 'Rock Modal', numerales: ['I', 'bVII', 'IV', 'I'] },
   { name: 'Andaluza / Épica', numerales: ['i', 'VII', 'VI', 'VII'], modo: 'menor' },
   { name: 'Cambio de Modo (Picardía)', numerales: ['I', 'III', 'IV', 'iv'] },
@@ -102,10 +61,15 @@ const MINOR_KEY_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', '
 const CHORD_INTERVALS = { major: [0, 4, 7], minor: [0, 3, 7], dim: [0, 3, 6] };
 
 // Deletrea una clase de altura sobre una letra concreta (p. ej. 10 sobre B → Bb)
-function spellNote(letterIndex, pc) {
+const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+// Las dobles alteraciones (Bbb, F##) se escriben con su equivalente simple (A, G)
+function spellNote(letterIndex, pc, preferFlats) {
   const letter = LETTERS[letterIndex % 7];
   let diff = (((pc - NATURAL_PC[letter]) % 12) + 12) % 12;
   if (diff > 6) diff -= 12;
+  if (Math.abs(diff) > 1) return (preferFlats ? FLAT_NAMES : SHARP_NAMES)[pc];
   return letter + (diff > 0 ? '#'.repeat(diff) : 'b'.repeat(-diff));
 }
 
@@ -120,7 +84,9 @@ export function getKeyDisplay(rootIndex, isMinor) {
 // Devuelve [{ name: 'Bb', pc: 10, quality: 'major' }, ...]
 export function transposeProgression(numerales, rootIndex, isMinor) {
   const scale = SCALES[isMinor ? 'menor' : 'mayor'];
-  const tonicLetter = LETTERS.indexOf(getKeyName(rootIndex, isMinor)[0]);
+  const tonic = getKeyName(rootIndex, isMinor);
+  const tonicLetter = LETTERS.indexOf(tonic[0]);
+  const preferFlats = tonic.includes('b') || tonic === 'F';
 
   return numerales.map((num) => {
     const match = /^([b#]?)([ivIV]+)(°?)$/.exec(num);
@@ -133,7 +99,7 @@ export function transposeProgression(numerales, rootIndex, isMinor) {
     const quality = dim ? 'dim' : roman === roman.toUpperCase() ? 'major' : 'minor';
     const suffix = quality === 'minor' ? 'm' : quality === 'dim' ? '°' : '';
 
-    return { name: spellNote(tonicLetter + degree, pc) + suffix, pc, quality };
+    return { name: spellNote(tonicLetter + degree, pc, preferFlats) + suffix, pc, quality };
   });
 }
 
@@ -144,84 +110,108 @@ export function getChordFrequencies(chord) {
   );
 }
 
-// Redacción en español: artículos y frases temporales correctas
-const OBJETOS_FEMENINOS = new Set([
-  'pareja', 'luna', 'boca', 'nariz', 'cama', 'taza', 'fotografía desgastada',
-  'carta sin enviar', 'ventana lluviosa', 'llave oxidada', 'chaqueta de cuero',
-  'radio de transistores', 'maleta vieja', 'vela encendida', 'caja de cerillos',
-  'botella con nota'
-]);
-const OBJETOS_PLURALES = new Set(['ojos']);
 
-export function conArticulo(objeto) {
-  if (OBJETOS_PLURALES.has(objeto)) return { texto: `unos ${objeto}`, plural: true };
-  return { texto: `${OBJETOS_FEMENINOS.has(objeto) ? 'una' : 'un'} ${objeto}`, plural: false };
-}
+// ── Modo avanzado: maqueta por secciones ─────────────────────────────
 
-const FRASES_FECHA = {
-  'Día de Gracias': 'del Día de Gracias',
-  'Día de la Independencia': 'del Día de la Independencia',
-  'cumpleaños': 'de un cumpleaños',
-  'aniversario': 'de un aniversario',
-  'madrugada de domingo': 'de una madrugada de domingo',
-  'último día de clases': 'del último día de clases',
-  'atardecer de verano': 'de un atardecer de verano',
-  'medianoche': 'de medianoche',
-  'lunes por la mañana': 'de un lunes por la mañana',
-  'eclipse': 'de un eclipse',
-  'solsticio': 'del solsticio'
+export const SECTION_TYPES = [
+  { id: 'Intro', descripcion: 'Abre la canción y presenta el clima.' },
+  { id: 'Verso', descripcion: 'Cuenta la historia.' },
+  { id: 'Coro', descripcion: 'La parte que se repite y se recuerda.' },
+  { id: 'Puente', descripcion: 'Un contraste antes del último coro.' }
+];
+
+// Sugerencias por sección y modo; se muestran de 3 en 3
+export const SECTION_PROGRESSIONS = {
+  Intro: {
+    mayor: [
+      { name: 'Apertura folk', numerales: ['I', 'IV', 'I', 'V'] },
+      { name: 'Intro nostálgica', numerales: ['vi', 'IV', 'I', 'V'] },
+      { name: 'Balada 50s', numerales: ['I', 'vi', 'IV', 'V'] },
+      { name: 'Rock modal', numerales: ['I', 'bVII', 'IV', 'I'] },
+      { name: 'Suspendida', numerales: ['IV', 'I', 'IV', 'V'] },
+      { name: 'Cálida', numerales: ['I', 'iii', 'IV', 'iv'] }
+    ],
+    menor: [
+      { name: 'Pop épico menor', numerales: ['i', 'VI', 'III', 'VII'] },
+      { name: 'Oscura y simple', numerales: ['i', 'iv', 'i', 'v'] },
+      { name: 'Andaluza', numerales: ['i', 'VII', 'VI', 'V'] },
+      { name: 'Cinemática', numerales: ['i', 'VI', 'iv', 'V'] },
+      { name: 'Pedal', numerales: ['i', 'VII', 'i', 'VI'] },
+      { name: 'Misteriosa', numerales: ['i', 'III', 'iv', 'VI'] }
+    ]
+  },
+  Verso: {
+    mayor: [
+      { name: 'Cuatro acordes', numerales: ['I', 'V', 'vi', 'IV'] },
+      { name: 'Nostálgica', numerales: ['vi', 'IV', 'I', 'V'] },
+      { name: 'Melancólica', numerales: ['I', 'vi', 'ii', 'V'] },
+      { name: 'Épica moderna', numerales: ['I', 'IV', 'vi', 'V'] },
+      { name: 'Cadencia jazz / pop', numerales: ['ii', 'V', 'I', 'vi'] },
+      { name: 'Folk acústico', numerales: ['I', 'IV', 'I', 'V'] }
+    ],
+    menor: [
+      { name: 'Pop épico menor', numerales: ['i', 'VI', 'III', 'VII'] },
+      { name: 'Narrativa', numerales: ['i', 'iv', 'VII', 'III'] },
+      { name: 'Andaluza', numerales: ['i', 'VII', 'VI', 'V'] },
+      { name: 'Menor sencilla', numerales: ['i', 'iv', 'v', 'i'] },
+      { name: 'Introspectiva', numerales: ['i', 'III', 'VII', 'VI'] },
+      { name: 'Tensa', numerales: ['i', 'VI', 'iv', 'V'] }
+    ]
+  },
+  Coro: {
+    mayor: [
+      { name: 'Camino real', numerales: ['IV', 'V', 'iii', 'vi'] },
+      { name: 'Himno pop', numerales: ['I', 'V', 'vi', 'IV'] },
+      { name: 'Despegue', numerales: ['IV', 'I', 'V', 'vi'] },
+      { name: 'Estribillo clásico', numerales: ['I', 'IV', 'V', 'IV'] },
+      { name: 'Resolución', numerales: ['IV', 'V', 'I', 'I'] },
+      { name: 'Emotiva', numerales: ['vi', 'IV', 'I', 'V'] }
+    ],
+    menor: [
+      { name: 'Coro épico', numerales: ['VI', 'VII', 'i', 'i'] },
+      { name: 'Luminosa', numerales: ['III', 'VII', 'i', 'VI'] },
+      { name: 'Himno menor', numerales: ['VI', 'III', 'VII', 'i'] },
+      { name: 'Subida', numerales: ['iv', 'VI', 'VII', 'i'] },
+      { name: 'Circular', numerales: ['i', 'VI', 'III', 'VII'] },
+      { name: 'Dramática', numerales: ['VI', 'VII', 'V', 'i'] }
+    ]
+  },
+  Puente: {
+    mayor: [
+      { name: 'Cambio de modo', numerales: ['IV', 'iv', 'I', 'V'] },
+      { name: 'Subida', numerales: ['ii', 'iii', 'IV', 'V'] },
+      { name: 'Contraste menor', numerales: ['vi', 'iii', 'IV', 'V'] },
+      { name: 'Épica prestada', numerales: ['bVI', 'bVII', 'I', 'I'] },
+      { name: 'Suspenso', numerales: ['vi', 'V', 'IV', 'V'] },
+      { name: 'Giro inesperado', numerales: ['iii', 'vi', 'II', 'V'] }
+    ],
+    menor: [
+      { name: 'Subida', numerales: ['iv', 'v', 'VI', 'VII'] },
+      { name: 'Contraste', numerales: ['VI', 'iv', 'i', 'V'] },
+      { name: 'Relativa mayor', numerales: ['III', 'VII', 'iv', 'V'] },
+      { name: 'Respiro', numerales: ['VI', 'VII', 'III', 'V'] },
+      { name: 'Napolitana', numerales: ['bII', 'V', 'i', 'i'] },
+      { name: 'Descenso', numerales: ['i', 'VII', 'VI', 'V'] }
+    ]
+  }
 };
 
-export const fraseFecha = (fecha) => FRASES_FECHA[fecha] ?? `de ${fecha}`;
-
-// Base de datos de sinónimos para inspiración de letras
-export const SINONIMOS_DB = {
-  "amor": ["afecto", "cariño", "devoción", "apego", "ternura"],
-  "tristeza": ["melancolía", "desolación", "pesadumbre", "nostalgia", "pena"],
-  "alegría": ["gozo", "júbilo", "entusiasmo", "regocijo", "vitalidad"],
-  "enojo": ["furia", "rabia", "indignación", "ira", "frustración"],
-  "miedo": ["temor", "pavor", "angustia", "pánico", "recelo"],
-  "repulsión": ["asco", "aversión", "rechazo", "desagrado", "repugnancia"],
-  "intriga": ["curiosidad", "misterio", "fascinación", "suspenso", "interés"],
-  "ansiedad": ["inquietud", "desasosiego", "impaciencia", "tensión", "zozobra"],
-  "aburrimiento": ["apatía", "tedio", "desinterés", "hastío", "monotonía"],
-  "envidia": ["celos", "anhelo", "resentimiento", "codicia", "despecho"],
-  "pasión": ["ardor", "fervor", "fuego", "obsesión", "vehemencia"],
-  "deseo": ["anhelo", "impulso", "tentación", "ambición", "aspiración"],
-  "melancolía": ["añoranza", "tristeza", "soledad", "ensimismamiento"],
-  "euforia": ["éxtasis", "exaltación", "frenesí", "exuberancia"],
-  "soledad": ["aislamiento", "desamparo", "retiro", "vacío", "intimidad"],
-  "gratitud": ["agradecimiento", "reconocimiento", "aprecio"],
-  "culpa": ["remordimiento", "pesar", "cargo de conciencia"],
-  "desesperanza": ["desaliento", "desesperación", "derrota"],
-  "serenidad": ["calma", "paz", "tranquilidad", "sosiego"],
-  "vulnerabilidad": ["fragilidad", "sensibilidad", "exposición"],
-  "asombro": ["deslumbramiento", "estupefacción", "maravilla"],
-  "frustración": ["impotencia", "desengaño", "contrariedad"],
-  "esperanza": ["ilusión", "fe", "optimismo", "confianza"],
-  "familiar": ["pariente", "allegado", "sangre", "ancestro"],
-  "infante": ["niño", "criatura", "pequeño", "infancia"],
-  "amigo": ["compañero", "confidente", "camarada"],
-  "pareja": ["amante", "compañero/a", "amor", "mitad"],
-  "desconocido": ["extraño", "forastero", "transeúnte", "sombra"],
-  "luna": ["astro nocturno", "satélite", "plata celeste"],
-  "ojos": ["mirada", "pupilas", "destellos", "visión"],
-  "boca": ["labios", "sonrisa", "suspiro", "aliento"],
-  "cama": ["lecho", "refugio", "sábanas", "descanso"],
-  "espejo": ["reflejo", "cristal", "reverso", "duplicado"],
-  "reloj antiguo": ["cronómetro", "péndulo", "segundero"],
-  "fotografía desgastada": ["retrato", "instantánea", "captura"],
-  "carta sin enviar": ["epístola", "confesión", "mensaje mudo"],
-  "diario íntimo": ["cuaderno", "bitácora", "confesionario"],
-  "vida": ["existencia", "latido", "transcurso", "camino"],
-  "muerte": ["final", "despedida", "partida", "silencio eterno"],
-  "pérdida": ["ausencia", "extravío", "vacío", "despojo"],
-  "reflexión": ["meditación", "pensamiento", "introspección"],
-  "recuerdo": ["memoria", "evocación", "huella", "reminiscencia"],
-  "sueño": ["anhelo", "quimera", "ilusión", "fantasía"],
-  "tiempo perdido": ["horas muertas", "pasado irrecuperable"],
-  "secreto guardado": ["confidencia", "misterio oculto", "sigilo"],
-  "promesa rota": ["juramento vano", "traición", "desengaño"],
-  "destino": ["azar", "camino trazado", "futuro"],
-  "distancia": ["lejanía", "abismo", "separación", "horizonte"]
+// Acordes para experimentar: los de la escala y algunos prestados
+export const CHORD_PALETTE = {
+  mayor: {
+    diatonicos: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
+    prestados: ['bVII', 'iv', 'bVI', 'II']
+  },
+  menor: {
+    diatonicos: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
+    prestados: ['V', 'IV', 'bII']
+  }
 };
+
+// Energía → tempo y ritmo inicial de la maqueta
+export const ENERGY_OPTIONS = [
+  { id: 'lenta', label: 'Lenta', descripcion: 'Una balada íntima.', bpm: 70, groove: 'Balada' },
+  { id: 'media', label: 'Tranquila', descripcion: 'Acústica, a medio tiempo.', bpm: 92, groove: 'Folk' },
+  { id: 'movida', label: 'Movida', descripcion: 'Para mover la cabeza.', bpm: 116, groove: 'Pop' },
+  { id: 'energica', label: 'Energética', descripcion: 'Guitarras y empuje.', bpm: 138, groove: 'Rock' }
+];
